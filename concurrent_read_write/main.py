@@ -17,12 +17,17 @@ mqtt_recv_topic='tqb/recv_data'
 
 serial_port='/dev/ttyS1'
 serial_baudrate=9600
+ser = serial.Serial(port=serial_port, baudrate=serial_baudrate, timeout=3, writeTimeout=3)
 
-mqtt_logfile=os.environ['CAF_APP_LOG_DIR']+'/mqtt.log'
-fp_mqtt=open(mqtt_logfile,"a+")
 
-pub_msg_queue= Queue.Queue()
-recv_msg_queue= Queue.Queue()
+mqtt_log_file   = os.environ['CAF_APP_LOG_DIR'] + '/mqtt.log'
+fp_mqtt         = open(mqtt_log_file,"a+")
+
+serial_log_file = os.environ['CAF_APP_LOG_DIR'] + '/serial.log'
+fp_serial       = open(serial_log_file,"a+")
+
+pub_msg_queue   = Queue.Queue()
+recv_msg_queue  = Queue.Queue()
 
 def on_connect(client,userdata,flags,rc):
     if rc == 0:
@@ -31,14 +36,33 @@ def on_connect(client,userdata,flags,rc):
         fp_mqtt.write("(Read) Connection to server: "+mqtt_server+" refused!\n")
     time.sleep(1)
     fp_mqtt.flush()
-    client.subscribe(mqtt_pub_topic,0)    
+    client.subscribe(mqtt_recv_topic,0)    
 
 def on_message(client,userdata,message):
-    msg=message.payload.decode('utf-8')
+    msg = message.payload.decode('utf-8')
     recv_msg_queue.put(str(msg))
     fp_mqtt.write("(Read) Received message: "+ str(msg)+" on topic: "+ str(message.topic)+"\n")
-    time.sleep(2)
+    time.sleep(1)
     fp_mqtt.flush()
+    
+    if ~recv_msg_queue.empty():
+        
+        sdata=recv_msg_queue.get_nowait()
+        
+        try:            
+            ser.write(str(sdata))
+            fp_serial.write("Wrote to Serial:"+str(sdata)+"\n")
+            time.sleep(1)
+            fp_serial.flush()
+        except serial.SerialTimeoutException:
+            fp_serial.write("Write to Serial [FAILED] due to timeout\n")
+            time.sleep(1)
+            fp_serial.flush()
+        except serial.SerialException:
+            fp_serial.write("Write to Serial [FAILED] due to unknown reason\n")
+            time.sleep(1)
+            fp_serial.flush()
+
             
 def read_mqtt():
     mqtt_read_client=mqtt.Client()
@@ -70,35 +94,26 @@ def write_mqtt():
 
 def read_serial():
     
-    full_path = os.environ['CAF_APP_LOG_DIR'] + "/"+"serial.log"
-    fp = open(full_path,"a+")
-    ser= serial.Serial(port=serial_port,baudrate=serial_baudrate,timeout=10)
     if ser.is_open:
         while(True):    
             size = ser.inWaiting()
-            fp.write(str(size)+"\n")
-            time.sleep(1)
-            fp.flush()
+            
             if size > 0:
+                
                 data = ser.read(size)
                 ndata = data.decode('utf-8')
                 pub_msg_queue.put(ndata)
-                fp.write("Read from Serial:"+str(ndata)+"\n")
+                fp_serial.write("Read from Serial:"+str(ndata)+"\n")
                 time.sleep(1)
-                fp.flush()
-            elif ~recv_msg_queue.empty():
-                sdata=recv_msg_queue.get()
-                ser.write(str(sdata))
-                fp.write("Write to Serial:"+str(sdata)+"\n")
-                time.sleep(1)
-                fp.flush()
+                fp_serial.flush()
+              
                 #ser.write(str(ndata))   
             #time.sleep(1)
     else:
-        fp.write("Serial not open!\n")
+        fp_serial.write("Serial not open!\n")
         time.sleep(1)
-        fp.flush()
-    fp.close()
+        fp_serial.flush()
+    fp_serial.close()
 
 #read_serial()       
 if __name__=='__main__':
