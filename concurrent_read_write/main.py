@@ -29,11 +29,14 @@ fp_serial       = open(serial_log_file,"a+")
 pub_msg_queue   = Queue.Queue()
 recv_msg_queue  = Queue.Queue()
 
+def get_timestamp():
+ return str(time.ctime())
+ 
 def on_connect(client,userdata,flags,rc):
     if rc == 0:
-        fp_mqtt.write("(Read) Connection to server: "+mqtt_server+" successful!\n")
+        fp_mqtt.write("[ "+ get_timestamp()+" ] (Read) Connection to server: "+mqtt_server+" successful!\n")
     else:
-        fp_mqtt.write("(Read) Connection to server: "+mqtt_server+" refused!\n")
+        fp_mqtt.write("[ "+get_timestamp()+" ] (Read) Connection to server: "+mqtt_server+" refused!\n")
     time.sleep(1)
     fp_mqtt.flush()
     client.subscribe(mqtt_recv_topic,0)    
@@ -41,25 +44,35 @@ def on_connect(client,userdata,flags,rc):
 def on_message(client,userdata,message):
     msg = message.payload.decode('utf-8')
     recv_msg_queue.put(str(msg))
-    fp_mqtt.write("(Read) Received message: "+ str(msg)+" on topic: "+ str(message.topic)+"\n")
+    fp_mqtt.write("[ "+get_timestamp()+" ] (Read) Received message: "+ str(msg)+" on topic: "+ str(message.topic)+"\n")
     time.sleep(1)
     fp_mqtt.flush()
     
+    if str(msg).lower() == 'log.reset':
+        fp_mqtt.truncate(0)
+        fp_serial.truncate(0)
+        fp_mqtt.write("[ "+get_timestamp()+" ] File Reset was initiated. Log File reset!\n")
+        fp_serial.write("[ "+get_timestamp()+" ] File Reset was initiated. Log File reset!\n")
+        time.sleep(1)
+        fp_serial.flush()
+        fp_mqtt.flush()
+        return
+        
     if ~recv_msg_queue.empty():
         
         sdata=recv_msg_queue.get_nowait()
         
         try:            
             ser.write(str(sdata))
-            fp_serial.write("Wrote to Serial:"+str(sdata)+"\n")
+            fp_serial.write("[ "+get_timestamp()+" ] Wrote to Serial:"+str(sdata)+"\n")
             time.sleep(1)
             fp_serial.flush()
         except serial.SerialTimeoutException:
-            fp_serial.write("Write to Serial [FAILED] due to timeout\n")
+            fp_serial.write("[ "+get_timestamp()+" ] Write to Serial FAILED due to timeout\n")
             time.sleep(1)
             fp_serial.flush()
         except serial.SerialException:
-            fp_serial.write("Write to Serial [FAILED] due to unknown reason\n")
+            fp_serial.write("[ "+get_timestamp()+" ] Write to Serial FAILED due to unknown reason\n")
             time.sleep(1)
             fp_serial.flush()
 
@@ -87,7 +100,7 @@ def write_mqtt():
             mqtt_client=mqtt.Client()
             mqtt_client.connect(mqtt_server,mqtt_port)
             mqtt_client.publish(mqtt_pub_topic,data)
-            fp_mqtt.write("Published: "+str(data)+" on topic: "+mqtt_pub_topic+"\n");
+            fp_mqtt.write("[ "+get_timestamp()+" ] Published: "+str(data)+" on topic: "+mqtt_pub_topic+"\n");
             time.sleep(1)
             fp_mqtt.flush()
     fp_mqtt.close()
@@ -103,14 +116,14 @@ def read_serial():
                 data = ser.read(size)
                 ndata = data.decode('utf-8')
                 pub_msg_queue.put(ndata)
-                fp_serial.write("Read from Serial:"+str(ndata)+"\n")
+                fp_serial.write("[ "+get_timestamp()+" ] Read from Serial:"+str(ndata)+"\n")
                 time.sleep(1)
                 fp_serial.flush()
               
                 #ser.write(str(ndata))   
             #time.sleep(1)
     else:
-        fp_serial.write("Serial not open!\n")
+        fp_serial.write("[ "+get_timestamp()+" ] Serial not open!\n")
         time.sleep(1)
         fp_serial.flush()
     fp_serial.close()
