@@ -1,10 +1,10 @@
 descriptor-schema-version: "2.0"
 info:
   author-link: "http://www.cisco.com/"
-  author-name: "Rishabh Pokharna"
-  description: "Serial Log Write"
-  name: "Serial Log Write"
-  version: "0.9"
+  author-name: "Mudit Pandey"
+  description: "Serial data to http GET"
+  name: "Serial data to http GET"
+  version: "1.0"
 
 app:
   type: paas
