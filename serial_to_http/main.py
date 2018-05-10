@@ -13,7 +13,7 @@ import base64
 
 import serial
 
-serial_port='/dev/ttyS2'
+serial_port='/dev/ttyS1'
 serial_baudrate = 115200
 
 ser = serial.Serial(port=serial_port, baudrate=serial_baudrate, timeout=3, writeTimeout=3)
